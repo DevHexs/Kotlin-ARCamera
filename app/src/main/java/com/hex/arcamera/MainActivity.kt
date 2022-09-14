@@ -3,6 +3,7 @@ package com.hex.arcamera
 import ai.deepar.ar.*
 import android.graphics.Bitmap
 import android.media.Image
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.util.Size
@@ -20,10 +21,8 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
 import com.google.common.util.concurrent.ListenableFuture
 import com.hex.arcamera.databinding.ActivityMainBinding
-import com.otaliastudios.cameraview.CameraListener
-import com.otaliastudios.cameraview.CameraView
-import com.otaliastudios.cameraview.PictureResult
-import com.otaliastudios.cameraview.VideoResult
+import com.otaliastudios.cameraview.*
+import com.otaliastudios.cameraview.preview.SurfaceCameraPreview
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.ExecutionException
@@ -35,8 +34,10 @@ class MainActivity : AppCompatActivity(), AREventListener, SurfaceHolder.Callbac
     private lateinit var binding: ActivityMainBinding
     private lateinit var deepAR: DeepAR
     private lateinit var cameraView: CameraView
-    private lateinit var cameraProviderFuture: ListenableFuture<ProcessCameraProvider>
-    private lateinit var surfaceProvider: ARSurfaceProvider
+    private var cameraProviderFuture: ListenableFuture<ProcessCameraProvider>? =  null
+
+    private var surfaceProvider: ARSurfaceProvider? = null
+    private lateinit var surfaceCamera: SurfaceCameraPreview
 
     private lateinit var buffers: Array<ByteBuffer>
     private var currentBuffer = 0
@@ -55,10 +56,10 @@ class MainActivity : AppCompatActivity(), AREventListener, SurfaceHolder.Callbac
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
     }
 
     override fun onStart() {
-
         setupCameraView()
 
         initializeDeepAR()
@@ -67,13 +68,12 @@ class MainActivity : AppCompatActivity(), AREventListener, SurfaceHolder.Callbac
 
         setupCameraSetting()
 
-        initialized()
-
         super.onStart()
     }
 
-    private fun setupCameraView() {
+    private fun setupCameraView(){
         //Camera View instance with lifecycle
+
         cameraView = binding.cameraView
         cameraView.setLifecycleOwner(this)
 
@@ -89,7 +89,6 @@ class MainActivity : AppCompatActivity(), AREventListener, SurfaceHolder.Callbac
         })
     }
 
-
     private fun initializeDeepAR() {
         deepAR = DeepAR(this)
         deepAR.setLicenseKey("6555b91cc4e31e52d71618674c9caf7f8222a97ba450bf445568ecd848473d83b63f414e29b3cf27")
@@ -103,8 +102,12 @@ class MainActivity : AppCompatActivity(), AREventListener, SurfaceHolder.Callbac
     }
 
     private fun initializeView() {
+
         var nextMask: ImageButton = binding.changeMask
-        var arView: SurfaceView = binding.surface.also {
+
+        surfaceCamera = SurfaceCameraPreview(this,cameraView)
+
+        var arView = surfaceCamera.view.also {
             it.holder.addCallback(this)
         }
 
@@ -119,16 +122,15 @@ class MainActivity : AppCompatActivity(), AREventListener, SurfaceHolder.Callbac
     private fun setupCameraSetting(){
         cameraView.open()
         cameraProviderFuture = ProcessCameraProvider.getInstance(this.cameraView.context)
-        cameraProviderFuture.addListener( {
-            @Override
-            fun run(){
+        cameraProviderFuture?.addListener( {
                 try{
-                    val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
-                    bindImageAnalysis(cameraProvider)
+                    val cameraProvider = cameraProviderFuture?.get()
+                    if (cameraProvider != null) {
+                        bindImageAnalysis(cameraProvider)
+                    }
                 } catch (e: ExecutionException){
                     e.printStackTrace()
                 }
-            }
         }, ContextCompat.getMainExecutor(this))
     }
 
@@ -146,16 +148,16 @@ class MainActivity : AppCompatActivity(), AREventListener, SurfaceHolder.Callbac
             cameraProvider.unbindAll()
             cameraProvider.bindToLifecycle(this,cameraSelector,preview)
             if (surfaceProvider == null) run {
-                surfaceProvider = ARSurfaceProvider(this, deepAR)
+                surfaceProvider = ARSurfaceProvider(this.cameraView.context, deepAR)
             }
             preview.setSurfaceProvider(surfaceProvider)
-            surfaceProvider.isMirror = lensFacing == CameraSelector.LENS_FACING_FRONT
+            surfaceProvider?.isMirror = lensFacing == CameraSelector.LENS_FACING_FRONT
         }else{
             val imageAnalysis = ImageAnalysis.Builder()
                 .setTargetResolution(cameraResolution)
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .build()
-            imageAnalysis.setAnalyzer(ContextCompat.getMainExecutor(cameraView.context), imageAnalyzer())
+            imageAnalysis.setAnalyzer(ContextCompat.getMainExecutor(this.cameraView.context), imageAnalyzer())
             buffersInitialized = false
             cameraProvider.unbindAll()
             cameraProvider.bindToLifecycle(this, cameraSelector, imageAnalysis)
@@ -218,6 +220,21 @@ class MainActivity : AppCompatActivity(), AREventListener, SurfaceHolder.Callbac
         currentEffect = (currentEffect + 1) % effects.size
         Log.i("Effects", effects[currentEffect])
         deepAR.switchEffect("effect", getFilterPath(effects[currentEffect]))
+    }
+
+    override fun onStop() {
+        super.onStop()
+        cameraView.close()
+    }
+
+    override fun onResume() {
+        super.onResume()
+
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        cameraView.destroy()
     }
 
     override fun screenshotTaken(p0: Bitmap?) {
