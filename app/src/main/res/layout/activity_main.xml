@@ -11,9 +11,11 @@
         android:keepScreenOn="true"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        app:cameraEngine="camera2"
+        app:cameraFacing="front"
         app:cameraGestureTap="autoFocus"
         app:cameraPreview="glSurface"
-        app:cameraFacing="front"
+        app:cameraPreviewFrameRate="30"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
@@ -29,12 +31,55 @@
             android:layout_width="50dp"
             android:layout_height="50dp"
             android:layout_alignParentStart="true"
+            android:layout_alignParentEnd="true"
             android:layout_alignParentBottom="true"
-            android:layout_marginStart="180dp"
-            android:layout_marginBottom="20dp"
+            android:layout_marginStart="140dp"
+            android:layout_marginEnd="220dp"
+            android:layout_marginBottom="10dp"
             android:background="@null"
             android:scaleType="centerInside"
-            android:src="@drawable/ic_next" />
+            android:src="@drawable/ic_cambiar_96" />
+
+        <ImageButton
+            android:id="@+id/takeScreenShot"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:layout_alignParentStart="true"
+            android:layout_alignParentEnd="true"
+            android:layout_alignParentBottom="true"
+            android:layout_marginStart="220dp"
+            android:layout_marginEnd="140dp"
+            android:layout_marginBottom="10dp"
+            android:background="@null"
+            android:backgroundTint="@color/white"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_shot_96" />
+
+        <ImageButton
+            android:id="@+id/changeActivity"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:layout_alignParentTop="true"
+            android:layout_alignParentEnd="true"
+            android:layout_marginTop="20dp"
+            android:layout_marginEnd="20dp"
+            android:background="@null"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_actividad_96"
+            />
+
+        <ImageButton
+            android:id="@+id/changeCamera"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:layout_alignParentStart="true"
+            android:layout_alignParentTop="true"
+            android:layout_marginStart="20dp"
+            android:layout_marginTop="20dp"
+            android:background="@null"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_camara_96"
+            />
 
     </RelativeLayout>
 

@@ -1,17 +1,22 @@
 package com.hex.arcamera
 
 import ai.deepar.ar.*
+import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
 import android.media.Image
+import android.media.MediaScannerConnection
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.text.format.DateFormat
 import android.util.DisplayMetrics
 import android.util.Log
 import android.util.Size
 import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.View
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.CameraSelector.Builder
@@ -27,8 +32,11 @@ import com.otaliastudios.cameraview.CameraView
 import com.otaliastudios.cameraview.PictureResult
 import com.otaliastudios.cameraview.VideoResult
 import com.otaliastudios.cameraview.preview.SurfaceCameraPreview
+import java.io.File
+import java.io.FileOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.*
 import java.util.concurrent.ExecutionException
 
 class MainActivity : AppCompatActivity(), AREventListener, SurfaceHolder.Callback {
@@ -42,7 +50,7 @@ class MainActivity : AppCompatActivity(), AREventListener, SurfaceHolder.Callbac
     private lateinit var cameraView: CameraView
     private lateinit var surfaceCamera: SurfaceCameraPreview
     private val defaultLensFacing = CameraSelector.LENS_FACING_FRONT
-    private val lensFacing = defaultLensFacing
+    private var lensFacing = defaultLensFacing
     private var useExternalCameraTexture = true
     private var cameraProviderFuture: ListenableFuture<ProcessCameraProvider>? = null
     private var surfaceProvider: ARSurfaceProvider? = null
@@ -83,6 +91,7 @@ class MainActivity : AppCompatActivity(), AREventListener, SurfaceHolder.Callbac
 
         cameraView = binding.cameraView
         cameraView.setLifecycleOwner(this)
+        cameraView.open()
 
         cameraView.addCameraListener(
                 object : CameraListener() {
@@ -137,11 +146,41 @@ class MainActivity : AppCompatActivity(), AREventListener, SurfaceHolder.Callbac
         arView.visibility = View.GONE
         arView.visibility = View.VISIBLE
 
+        binding.changeCamera.setOnClickListener {
+
+            when (lensFacing){
+                CameraSelector.LENS_FACING_FRONT -> CameraSelector.LENS_FACING_BACK
+                CameraSelector.LENS_FACING_BACK -> CameraSelector.LENS_FACING_FRONT
+                else -> {CameraSelector.LENS_FACING_FRONT}
+            }.also { lensFacing = it }
+
+            cameraView.toggleFacing()
+
+            var cameraProvider: ProcessCameraProvider? = null
+            try{
+                cameraProvider = cameraProviderFuture?.get()
+                cameraProvider?.unbindAll()
+            } catch (e : ExecutionException) {
+                e.printStackTrace()
+            } catch (e : InterruptedException) {
+                e.printStackTrace()
+            }
+            setupCameraSetting()
+        }
+
         binding.changeMask.setOnClickListener { changeMask() }
+
+        binding.changeActivity.setOnClickListener {
+            val myIntent = Intent(this, AboutActivity::class.java)
+            startActivity(myIntent)
+        }
+
+        binding.takeScreenShot.setOnClickListener {
+            deepAR!!.takeScreenshot()
+        }
     }
 
     private fun setupCameraSetting() {
-        cameraView.open()
         cameraProviderFuture = ProcessCameraProvider.getInstance(this.cameraView.context)
         cameraProviderFuture?.addListener(
                 {
@@ -260,7 +299,6 @@ class MainActivity : AppCompatActivity(), AREventListener, SurfaceHolder.Callbac
         }
     }
 
-
     private fun imageAnalyzer() =  ImageAnalysis.Analyzer() {
         @Override
         fun analyze(image: ImageProxy) {
@@ -315,8 +353,8 @@ class MainActivity : AppCompatActivity(), AREventListener, SurfaceHolder.Callbac
 //        currentSwitchRecording = false
         var cameraProvider: ProcessCameraProvider? = null
         try {
-            cameraProvider = cameraProviderFuture!!.get()
-            cameraProvider.unbindAll()
+            cameraProvider = cameraProviderFuture?.get()
+            cameraProvider?.unbindAll()
         } catch (e: ExecutionException) {
             e.printStackTrace()
         } catch (e: InterruptedException) {
@@ -328,13 +366,18 @@ class MainActivity : AppCompatActivity(), AREventListener, SurfaceHolder.Callbac
         }
         deepAR?.release()
         deepAR = null
-        super.onStop()
         cameraView.close()
         super.onStop()
     }
 
+    override fun onPause() {
+        cameraView.close()
+        super.onPause()
+    }
+
     override fun onResume() {
         super.onResume()
+        cameraView.open()
     }
 
     override fun onDestroy() {
@@ -350,7 +393,9 @@ class MainActivity : AppCompatActivity(), AREventListener, SurfaceHolder.Callbac
         cameraView.destroy()
     }
 
-    override fun screenshotTaken(p0: Bitmap?) {}
+    override fun onBackPressed() {
+        super.onBackPressed()
+    }
 
     override fun videoRecordingStarted() {}
 
@@ -386,6 +431,34 @@ class MainActivity : AppCompatActivity(), AREventListener, SurfaceHolder.Callbac
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         if (deepAR != null) {
             deepAR?.setRenderSurface(null, 0, 0)
+        }
+    }
+
+    override fun screenshotTaken(bitmap: Bitmap) {
+        val now = DateFormat.format("yyyy_MM_dd_hh_mm_ss", Date())
+        try {
+            val imageFile = File(
+                getExternalFilesDir(Environment.DIRECTORY_PICTURES),
+                "image_$now.jpg"
+            )
+            val outputStream = FileOutputStream(imageFile)
+            val quality = 100
+            bitmap.compress(Bitmap.CompressFormat.JPEG, quality, outputStream)
+            outputStream.flush()
+            outputStream.close()
+            MediaScannerConnection.scanFile(
+                this@MainActivity,
+                arrayOf(imageFile.toString()),
+                null,
+                null
+            )
+            Toast.makeText(
+                this@MainActivity,
+                "Screenshot " + imageFile.name + " saved.",
+                Toast.LENGTH_SHORT
+            ).show()
+        } catch (e: Throwable) {
+            e.printStackTrace()
         }
     }
 }
